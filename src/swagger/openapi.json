@@ -1,0 +1,1743 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Neo Domotique API",
+    "description": "API Backend pour l'application Neo Domotique - Solution de domotique white-label",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Neo Domotique",
+      "email": "contact@neo-domotique.fr"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Serveur de développement"
+    }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Authentification et gestion de session" },
+    { "name": "Users", "description": "Gestion des utilisateurs (Admin)" },
+    { "name": "Clients", "description": "Gestion des clients" },
+    { "name": "Projects", "description": "Gestion des projets" },
+    { "name": "Rooms", "description": "Gestion des pièces" },
+    { "name": "Devices", "description": "Gestion des équipements domotiques" },
+    { "name": "Photos", "description": "Gestion des photos" },
+    { "name": "Checklist", "description": "Items de checklist pour audit" },
+    { "name": "Products", "description": "Catalogue de produits" },
+    { "name": "Quotes", "description": "Gestion des devis" },
+    { "name": "Sync", "description": "Synchronisation offline" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Vérifie que l'API est opérationnelle",
+        "responses": {
+          "200": {
+            "description": "API opérationnelle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Connexion",
+        "description": "Authentifie un utilisateur et retourne les tokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "jean.dupont@neo-domotique.fr" },
+                  "password": { "type": "string", "example": "password123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Déconnexion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Déconnexion réussie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Déconnexion réussie" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Rafraîchir le token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["refreshToken"],
+                "properties": {
+                  "refreshToken": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nouveaux tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": { "type": "string" },
+                    "refreshToken": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Utilisateur courant",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Informations utilisateur",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/User" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Liste des utilisateurs",
+        "description": "Admin only",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "name": "role", "in": "query", "schema": { "type": "string", "enum": ["admin", "integrateur", "auditeur"] } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste paginée",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedUsers" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "summary": "Créer un utilisateur",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateUser" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Utilisateur créé",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/User" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Détail utilisateur",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/User" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Users"],
+        "summary": "Modifier utilisateur",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateUser" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/User" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "summary": "Supprimer utilisateur",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/projets/clients": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Liste des clients",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedClients" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Clients"],
+        "summary": "Créer un client",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateClient" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Client" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projets/clients/{id}": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Détail client",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Client" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Clients"],
+        "summary": "Modifier client",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateClient" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Client" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Clients"],
+        "summary": "Supprimer client",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/projets": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Liste des projets",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["brouillon", "en_cours", "termine", "archive"] } },
+          { "name": "clientId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedProjects" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Créer un projet",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProject" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Project" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projets/{id}": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Détail projet",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectDetail" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Projects"],
+        "summary": "Modifier projet",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProject" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Project" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Supprimer projet",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/projets/{projectId}/pieces": {
+      "get": {
+        "tags": ["Rooms"],
+        "summary": "Liste des pièces d'un projet",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ProjectIdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Room" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Rooms"],
+        "summary": "Créer une pièce",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ProjectIdPath" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateRoom" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Room" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pieces/{id}": {
+      "get": {
+        "tags": ["Rooms"],
+        "summary": "Détail pièce",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RoomDetail" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Rooms"],
+        "summary": "Modifier pièce",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateRoom" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Room" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Rooms"],
+        "summary": "Supprimer pièce",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/projets/{projectId}/devices": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Liste des devices d'un projet",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ProjectIdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/DeviceWithRoom" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pieces/{roomId}/devices": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Liste des devices d'une pièce",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/RoomIdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Device" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Créer un device",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/RoomIdPath" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDevice" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Device" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices/{id}": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Détail device",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Device" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Devices"],
+        "summary": "Modifier device",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateDevice" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Device" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Devices"],
+        "summary": "Supprimer device",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/pieces/{roomId}/photos": {
+      "get": {
+        "tags": ["Photos"],
+        "summary": "Liste des photos d'une pièce",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/RoomIdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Photo" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Photos"],
+        "summary": "Upload une photo",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/RoomIdPath" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "caption": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Photo" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/photos/{id}": {
+      "delete": {
+        "tags": ["Photos"],
+        "summary": "Supprimer photo",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/pieces/{roomId}/checklist": {
+      "post": {
+        "tags": ["Checklist"],
+        "summary": "Créer un item checklist",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/RoomIdPath" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateChecklistItem" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChecklistItem" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/checklist/{id}": {
+      "put": {
+        "tags": ["Checklist"],
+        "summary": "Modifier item checklist",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateChecklistItem" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChecklistItem" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Checklist"],
+        "summary": "Supprimer item checklist",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/produits": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Liste des produits",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" },
+          { "name": "category", "in": "query", "schema": { "type": "string" } },
+          { "name": "brand", "in": "query", "schema": { "type": "string" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "isActive", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedProducts" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Products"],
+        "summary": "Créer un produit (Admin)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProduct" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/produits/categories": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Liste des catégories",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "example": ["Éclairage", "Volets", "Chauffage", "Sécurité"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/produits/marques": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Liste des marques",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "example": ["Philips", "Somfy", "Ajax", "Sonos"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/produits/{id}": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Détail produit",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Products"],
+        "summary": "Modifier produit (Admin)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProduct" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Products"],
+        "summary": "Supprimer produit (Admin)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/produits/import": {
+      "post": {
+        "tags": ["Products"],
+        "summary": "Import CSV (Admin)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "imported": { "type": "integer" },
+                    "errors": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projets/{projectId}/devis": {
+      "get": {
+        "tags": ["Quotes"],
+        "summary": "Liste des devis d'un projet",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ProjectIdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Quote" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Quotes"],
+        "summary": "Créer un devis",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ProjectIdPath" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateQuote" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Quote" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devis/{id}": {
+      "get": {
+        "tags": ["Quotes"],
+        "summary": "Détail devis",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/QuoteDetail" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Quotes"],
+        "summary": "Modifier devis",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateQuote" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Quote" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Quotes"],
+        "summary": "Supprimer devis",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Deleted" }
+        }
+      }
+    },
+    "/api/devis/{id}/pdf": {
+      "get": {
+        "tags": ["Quotes"],
+        "summary": "Générer PDF du devis",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "description": "HTML du devis",
+            "content": {
+              "text/html": {
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devis/{id}/envoyer": {
+      "post": {
+        "tags": ["Quotes"],
+        "summary": "Envoyer devis par email",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdPath" }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "sentAt": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync/status": {
+      "get": {
+        "tags": ["Sync"],
+        "summary": "Statut de synchronisation",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "lastSync": { "type": "string", "format": "date-time" },
+                    "pendingChanges": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync/pull": {
+      "post": {
+        "tags": ["Sync"],
+        "summary": "Pull changes from server",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lastSyncAt": { "type": "string", "format": "date-time" },
+                  "tables": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "example": ["clients", "projects", "rooms"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "changes": { "type": "object" },
+                    "serverTimestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync/push": {
+      "post": {
+        "tags": ["Sync"],
+        "summary": "Push changes to server",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "changes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tableName": { "type": "string" },
+                        "recordId": { "type": "string" },
+                        "operation": { "type": "string", "enum": ["create", "update", "delete"] },
+                        "data": { "type": "object" },
+                        "clientTimestamp": { "type": "string", "format": "date-time" }
+                      }
+                    }
+                  },
+                  "deviceId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "processed": { "type": "integer" },
+                    "errors": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "IdPath": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "ProjectIdPath": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "RoomIdPath": {
+        "name": "roomId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": { "type": "integer", "default": 1, "minimum": 1 }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 100 }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Non authentifié",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Accès interdit",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Non trouvé",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Deleted": {
+        "description": "Supprimé",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": { "type": "string", "example": "Supprimé" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string" },
+              "code": { "type": "string" }
+            }
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "totalPages": { "type": "integer" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "phone": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin", "integrateur", "auditeur"] },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateUser": {
+        "type": "object",
+        "required": ["email", "password", "firstName", "lastName"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 6 },
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "phone": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin", "integrateur", "auditeur"], "default": "integrateur" }
+        }
+      },
+      "UpdateUser": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 6 },
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "phone": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin", "integrateur", "auditeur"] }
+        }
+      },
+      "PaginatedUsers": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/User" } },
+          "pagination": { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "Client": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "phone": { "type": "string" },
+          "address": { "type": "string" },
+          "city": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "notes": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateClient": {
+        "type": "object",
+        "required": ["firstName", "lastName"],
+        "properties": {
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "phone": { "type": "string" },
+          "address": { "type": "string" },
+          "city": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      },
+      "UpdateClient": {
+        "type": "object",
+        "properties": {
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "phone": { "type": "string" },
+          "address": { "type": "string" },
+          "city": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      },
+      "PaginatedClients": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Client" } },
+          "pagination": { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "clientId": { "type": "string", "format": "uuid" },
+          "userId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "status": { "type": "string", "enum": ["brouillon", "en_cours", "termine", "archive"] },
+          "address": { "type": "string" },
+          "city": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "surface": { "type": "number" },
+          "roomCount": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProjectDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Project" },
+          {
+            "type": "object",
+            "properties": {
+              "client": { "$ref": "#/components/schemas/Client" },
+              "rooms": { "type": "array", "items": { "$ref": "#/components/schemas/Room" } }
+            }
+          }
+        ]
+      },
+      "CreateProject": {
+        "type": "object",
+        "required": ["clientId", "name"],
+        "properties": {
+          "clientId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "status": { "type": "string", "enum": ["brouillon", "en_cours", "termine", "archive"], "default": "brouillon" },
+          "address": { "type": "string" },
+          "city": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "surface": { "type": "number" },
+          "roomCount": { "type": "integer" }
+        }
+      },
+      "UpdateProject": {
+        "type": "object",
+        "properties": {
+          "clientId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "status": { "type": "string", "enum": ["brouillon", "en_cours", "termine", "archive"] },
+          "address": { "type": "string" },
+          "city": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "surface": { "type": "number" },
+          "roomCount": { "type": "integer" }
+        }
+      },
+      "PaginatedProjects": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Project" } },
+          "pagination": { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "Room": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["salon", "cuisine", "chambre", "salle_de_bain", "bureau", "garage", "exterieur", "autre"] },
+          "floor": { "type": "integer" },
+          "notes": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RoomDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Room" },
+          {
+            "type": "object",
+            "properties": {
+              "photos": { "type": "array", "items": { "$ref": "#/components/schemas/Photo" } },
+              "checklistItems": { "type": "array", "items": { "$ref": "#/components/schemas/ChecklistItem" } },
+              "devices": { "type": "array", "items": { "$ref": "#/components/schemas/Device" } }
+            }
+          }
+        ]
+      },
+      "CreateRoom": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["salon", "cuisine", "chambre", "salle_de_bain", "bureau", "garage", "exterieur", "autre"], "default": "autre" },
+          "floor": { "type": "integer", "default": 0 },
+          "notes": { "type": "string" }
+        }
+      },
+      "UpdateRoom": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["salon", "cuisine", "chambre", "salle_de_bain", "bureau", "garage", "exterieur", "autre"] },
+          "floor": { "type": "integer" },
+          "notes": { "type": "string" }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "roomId": { "type": "string", "format": "uuid" },
+          "productId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "serialNumber": { "type": "string" },
+          "macAddress": { "type": "string" },
+          "ipAddress": { "type": "string" },
+          "status": { "type": "string", "enum": ["planifie", "installe", "configure", "operationnel", "en_panne"] },
+          "location": { "type": "string" },
+          "notes": { "type": "string" },
+          "isOnline": { "type": "boolean" },
+          "lastSeenAt": { "type": "string", "format": "date-time" },
+          "installedAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DeviceWithRoom": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Device" },
+          {
+            "type": "object",
+            "properties": {
+              "roomName": { "type": "string" },
+              "roomType": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "CreateDevice": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "productId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "serialNumber": { "type": "string" },
+          "macAddress": { "type": "string" },
+          "ipAddress": { "type": "string" },
+          "status": { "type": "string", "enum": ["planifie", "installe", "configure", "operationnel", "en_panne"], "default": "planifie" },
+          "location": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      },
+      "UpdateDevice": {
+        "type": "object",
+        "properties": {
+          "productId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "serialNumber": { "type": "string" },
+          "macAddress": { "type": "string" },
+          "ipAddress": { "type": "string" },
+          "status": { "type": "string", "enum": ["planifie", "installe", "configure", "operationnel", "en_panne"] },
+          "location": { "type": "string" },
+          "notes": { "type": "string" },
+          "isOnline": { "type": "boolean" }
+        }
+      },
+      "Photo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "roomId": { "type": "string", "format": "uuid" },
+          "filename": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "caption": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ChecklistItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "roomId": { "type": "string", "format": "uuid" },
+          "category": { "type": "string" },
+          "label": { "type": "string" },
+          "checked": { "type": "boolean" },
+          "notes": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateChecklistItem": {
+        "type": "object",
+        "required": ["category", "label"],
+        "properties": {
+          "category": { "type": "string" },
+          "label": { "type": "string" },
+          "checked": { "type": "boolean", "default": false },
+          "notes": { "type": "string" }
+        }
+      },
+      "UpdateChecklistItem": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string" },
+          "label": { "type": "string" },
+          "checked": { "type": "boolean" },
+          "notes": { "type": "string" }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "reference": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "category": { "type": "string" },
+          "brand": { "type": "string" },
+          "priceHT": { "type": "number" },
+          "tvaRate": { "type": "number" },
+          "imageUrl": { "type": "string", "format": "uri" },
+          "isActive": { "type": "boolean" },
+          "stock": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateProduct": {
+        "type": "object",
+        "required": ["reference", "name", "category", "priceHT"],
+        "properties": {
+          "reference": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "category": { "type": "string" },
+          "brand": { "type": "string" },
+          "priceHT": { "type": "number" },
+          "tvaRate": { "type": "number", "default": 20 },
+          "imageUrl": { "type": "string", "format": "uri" },
+          "isActive": { "type": "boolean", "default": true },
+          "stock": { "type": "integer" }
+        }
+      },
+      "UpdateProduct": {
+        "type": "object",
+        "properties": {
+          "reference": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "category": { "type": "string" },
+          "brand": { "type": "string" },
+          "priceHT": { "type": "number" },
+          "tvaRate": { "type": "number" },
+          "imageUrl": { "type": "string", "format": "uri" },
+          "isActive": { "type": "boolean" },
+          "stock": { "type": "integer" }
+        }
+      },
+      "PaginatedProducts": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Product" } },
+          "pagination": { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "number": { "type": "string" },
+          "status": { "type": "string", "enum": ["brouillon", "envoye", "accepte", "refuse", "expire"] },
+          "validUntil": { "type": "string", "format": "date-time" },
+          "totalHT": { "type": "number" },
+          "totalTVA": { "type": "number" },
+          "totalTTC": { "type": "number" },
+          "discount": { "type": "number" },
+          "notes": { "type": "string" },
+          "pdfUrl": { "type": "string", "format": "uri" },
+          "sentAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "QuoteDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Quote" },
+          {
+            "type": "object",
+            "properties": {
+              "lines": { "type": "array", "items": { "$ref": "#/components/schemas/QuoteLine" } },
+              "project": { "$ref": "#/components/schemas/Project" },
+              "client": { "$ref": "#/components/schemas/Client" }
+            }
+          }
+        ]
+      },
+      "QuoteLine": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "quoteId": { "type": "string", "format": "uuid" },
+          "productId": { "type": "string", "format": "uuid" },
+          "description": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "unitPriceHT": { "type": "number" },
+          "tvaRate": { "type": "number" },
+          "totalHT": { "type": "number" },
+          "sortOrder": { "type": "integer" }
+        }
+      },
+      "CreateQuote": {
+        "type": "object",
+        "properties": {
+          "validUntil": { "type": "string", "format": "date-time" },
+          "discount": { "type": "number", "minimum": 0, "maximum": 100, "default": 0 },
+          "notes": { "type": "string" },
+          "lines": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/QuoteLineInput" }
+          }
+        }
+      },
+      "UpdateQuote": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["brouillon", "envoye", "accepte", "refuse", "expire"] },
+          "validUntil": { "type": "string", "format": "date-time" },
+          "discount": { "type": "number", "minimum": 0, "maximum": 100 },
+          "notes": { "type": "string" },
+          "lines": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/QuoteLineInput" }
+          }
+        }
+      },
+      "QuoteLineInput": {
+        "type": "object",
+        "required": ["description", "quantity", "unitPriceHT"],
+        "properties": {
+          "productId": { "type": "string", "format": "uuid" },
+          "description": { "type": "string" },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "unitPriceHT": { "type": "number", "minimum": 0 },
+          "tvaRate": { "type": "number", "minimum": 0, "maximum": 100, "default": 20 }
+        }
+      }
+    }
+  }
+}
