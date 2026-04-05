@@ -30,9 +30,11 @@ export async function createSession(c: Context, user: AdminUser): Promise<void> 
     expiresIn: SESSION_EXPIRY,
   });
 
+  const isHttps = c.req.url.startsWith('https') || c.req.header('x-forwarded-proto') === 'https';
+
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: env.NODE_ENV === 'production',
+    secure: isHttps,
     sameSite: 'Lax',
     maxAge: SESSION_EXPIRY,
     path: '/backoffice',
