@@ -1,5 +1,11 @@
-import { eq, and, desc, SQL, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, SQL, inArray } from 'drizzle-orm';
 import { db } from '../../config/database';
+import {
+  nextQuoteNumber,
+  quoteNumberPrefix,
+  isDuplicateQuoteNumberError,
+  QUOTE_NUMBER_MAX_ATTEMPTS,
+} from './quote-number';
 import { quotes, quoteLines, projects, clients, products } from '../../db/schema';
 import { NotFoundError } from '../../lib/errors';
 import type { CreateQuoteInput, UpdateQuoteInput, QuoteLineInput } from './quotes.schema';
@@ -107,26 +113,20 @@ async function buildCostMap(productIds: string[]): Promise<Map<string, number>> 
 
 async function generateQuoteNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const prefix = `DEV-${year}-`;
+  const prefix = quoteNumberPrefix(year);
 
-  // Get the latest quote number for this year
+  // LIKE, et surtout PAS `eq` : le motif porte un '%'. Avec une egalite la
+  // requete ne remontait jamais rien, la sequence restait bloquee a 1, et le
+  // 2e devis de l'annee violait la contrainte d'unicite sur `number` — donc
+  // plus aucun devis creable. Meme forme que les commandes et les factures.
   const [latest] = await db
     .select({ number: quotes.number })
     .from(quotes)
-    .where(eq(quotes.number, `${prefix}%`))
-    .orderBy(desc(quotes.createdAt))
+    .where(sql`${quotes.number} LIKE ${prefix + '%'}`)
+    .orderBy(desc(quotes.number))
     .limit(1);
 
-  let sequence = 1;
-
-  if (latest && latest.number.startsWith(prefix)) {
-    const currentSeq = parseInt(latest.number.substring(prefix.length), 10);
-    if (!isNaN(currentSeq)) {
-      sequence = currentSeq + 1;
-    }
-  }
-
-  return `${prefix}${sequence.toString().padStart(4, '0')}`;
+  return nextQuoteNumber(year, latest?.number);
 }
 
 export async function getQuotesByProject(projectId: string, userId: string, userRole: string) {
@@ -186,8 +186,6 @@ export async function createQuote(
 ) {
   await verifyProjectAccess(projectId, userId, userRole);
 
-  const number = await generateQuoteNumber();
-
   // Build cost map from product purchase prices
   const productIds = input.lines
     .filter(l => l.productId)
@@ -196,23 +194,40 @@ export async function createQuote(
 
   const { lines, totalHT, totalTVA, totalTTC, totalCostHT, totalMarginHT, marginPercent } = calculateTotals(input.lines, input.discount, costMap);
 
-  const [quote] = await db
-    .insert(quotes)
-    .values({
-      projectId,
-      number,
-      status: 'brouillon',
-      validUntil: input.validUntil,
-      discount: input.discount?.toString(),
-      notes: input.notes,
-      totalHT: totalHT.toFixed(2),
-      totalTVA: totalTVA.toFixed(2),
-      totalTTC: totalTTC.toFixed(2),
-      totalCostHT: totalCostHT.toFixed(2),
-      totalMarginHT: totalMarginHT.toFixed(2),
-      marginPercent: marginPercent.toFixed(2),
-    })
-    .returning();
+  // Le numero est calcule PUIS insere, sans verrou : deux devis crees au meme
+  // instant visent le meme numero. Le perdant re-tente avec le suivant plutot
+  // que de renvoyer une erreur a l'utilisateur.
+  let quote: typeof quotes.$inferSelect | undefined;
+
+  for (let attempt = 0; attempt < QUOTE_NUMBER_MAX_ATTEMPTS; attempt++) {
+    const number = await generateQuoteNumber();
+
+    try {
+      [quote] = await db
+        .insert(quotes)
+        .values({
+          projectId,
+          number,
+          status: 'brouillon',
+          validUntil: input.validUntil,
+          discount: input.discount?.toString(),
+          notes: input.notes,
+          totalHT: totalHT.toFixed(2),
+          totalTVA: totalTVA.toFixed(2),
+          totalTTC: totalTTC.toFixed(2),
+          totalCostHT: totalCostHT.toFixed(2),
+          totalMarginHT: totalMarginHT.toFixed(2),
+          marginPercent: marginPercent.toFixed(2),
+        })
+        .returning();
+      break;
+    } catch (error) {
+      if (isDuplicateQuoteNumberError(error) && attempt < QUOTE_NUMBER_MAX_ATTEMPTS - 1) {
+        continue;
+      }
+      throw error;
+    }
+  }
 
   if (!quote) {
     throw new NotFoundError('Devis');
